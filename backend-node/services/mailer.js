@@ -1,10 +1,6 @@
 // Sends email via SMTP when SMTP_HOST is set. Otherwise it logs the message
 // to the server console so local development works with no mail setup.
 
-```js
-// utils/sendMail.js
-// Sends transactional email through the Resend HTTPS API.
-// Compatible with CommonJS Express applications.
 
 const RESEND_API_URL = "https://api.resend.com/emails";
 
@@ -24,14 +20,14 @@ async function sendMail({ to, subject, text }) {
 
   if (!isConfigured()) {
     throw new Error(
-      "Email is not configured. Set RESEND_API_KEY and EMAIL_FROM."
+      "Missing RESEND_API_KEY or EMAIL_FROM environment variable."
     );
   }
 
   const response = await fetch(RESEND_API_URL, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+      Authorization: "Bearer " + process.env.RESEND_API_KEY,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
@@ -46,21 +42,19 @@ async function sendMail({ to, subject, text }) {
   const result = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    // Log provider details on the server, never the API key.
-    console.error("Resend email API error:", {
+    console.error("Resend API error:", {
       status: response.status,
       message: result.message || result.name || "Unknown error",
     });
 
     throw new Error(
-      `Email provider rejected the request (HTTP ${response.status}).`
+      "Email provider rejected request (HTTP " +
+        response.status +
+        ")."
     );
   }
 
-  console.log("Email accepted by Resend:", {
-    id: result.id,
-    recipient: to,
-  });
+  console.log("Email accepted by Resend:", result.id);
 
   return {
     sent: true,
@@ -72,4 +66,4 @@ module.exports = {
   sendMail,
   isConfigured,
 };
-```
+
