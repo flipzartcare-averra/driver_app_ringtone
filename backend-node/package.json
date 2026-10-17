@@ -23,6 +23,6 @@
     "nodemailer": "6.9.14",
     "razorpay": "2.9.4",
     "rate-limit-redis": "4.2.0"
-    "resend": "^6.34.1"
+    "resend": "6.34.1"
   }
 }
