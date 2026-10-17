@@ -1,33 +1,75 @@
 // Sends email via SMTP when SMTP_HOST is set. Otherwise it logs the message
 // to the server console so local development works with no mail setup.
-let transporter = null;
+
+```js
+// utils/sendMail.js
+// Sends transactional email through the Resend HTTPS API.
+// Compatible with CommonJS Express applications.
+
+const RESEND_API_URL = "https://api.resend.com/emails";
 
 function isConfigured() {
-  return Boolean(process.env.SMTP_HOST);
+  return Boolean(
+    process.env.RESEND_API_KEY &&
+    process.env.EMAIL_FROM
+  );
 }
 
 async function sendMail({ to, subject, text }) {
+  if (!to || !subject || !text) {
+    throw new Error(
+      "Email recipient, subject, and text are required."
+    );
+  }
+
   if (!isConfigured()) {
-    console.log(`[mail disabled — SMTP_HOST not set] To: ${to}\nSubject: ${subject}\n${text}`);
-    return { sent: false };
+    throw new Error(
+      "Email is not configured. Set RESEND_API_KEY and EMAIL_FROM."
+    );
   }
-  if (!transporter) {
-    const nodemailer = require("nodemailer");
-    const port = Number(process.env.SMTP_PORT) || 587;
-    transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port,
-      secure: port === 465,
-      auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } : undefined,
-    });
-  }
-  await transporter.sendMail({
-    from: process.env.SMTP_FROM || process.env.SMTP_USER,
-    to,
-    subject,
-    text,
+
+  const response = await fetch(RESEND_API_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: process.env.EMAIL_FROM,
+      to: [to],
+      subject,
+      text,
+    }),
+    signal: AbortSignal.timeout(15000),
   });
-  return { sent: true };
+
+  const result = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    // Log provider details on the server, never the API key.
+    console.error("Resend email API error:", {
+      status: response.status,
+      message: result.message || result.name || "Unknown error",
+    });
+
+    throw new Error(
+      `Email provider rejected the request (HTTP ${response.status}).`
+    );
+  }
+
+  console.log("Email accepted by Resend:", {
+    id: result.id,
+    recipient: to,
+  });
+
+  return {
+    sent: true,
+    messageId: result.id,
+  };
 }
 
-module.exports = { sendMail, isConfigured };
+module.exports = {
+  sendMail,
+  isConfigured,
+};
+```
